@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1018">
+<title>BTC Grid Control DEMO</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1018;--p:#141c28;--line:#293548;--text:#eef3fa;--muted:#91a0b4;--green:#36c98b;--red:#ff6b75;--blue:#78a9ff;--gold:#f2c66d}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{position:sticky;top:0;z-index:5;background:#0b1018f2;border-bottom:1px solid var(--line);padding:16px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+h1{font-size:21px;margin:0}h2{font-size:19px;margin:0 0 12px}.sub,.muted,.k,label{color:var(--muted)}
+.sub{font-size:13px;margin-top:4px}.pill{background:var(--gold);color:#17130a;border-radius:16px;padding:10px 12px;font-size:12px;font-weight:800;white-space:nowrap}
+main{max-width:1100px;margin:auto;padding:16px 14px 60px}.pricebox{background:linear-gradient(135deg,#18283a,#141c28);border:1px solid #30445e;border-radius:18px;padding:18px}
+.small{font-size:13px}.price{font-size:36px;font-weight:800;margin:10px 0 14px;letter-spacing:-1px}
+.row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.fieldwrap{flex:1;min-width:160px}label{display:block;font-size:13px;margin:0 0 6px}
+input,select{width:100%;background:#0e1520;color:var(--text);border:1px solid var(--line);border-radius:11px;padding:13px;font-size:16px;min-height:48px}
+button{border:0;border-radius:11px;padding:14px 16px;background:var(--blue);color:#07111f;font-size:15px;font-weight:750;min-height:48px}
+button.secondary{background:#263449;color:var(--text)}button.danger{background:#4a252d;color:#ffdce0}button:disabled{opacity:.4}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0}.card{background:var(--p);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0}
+.k{font-size:13px;margin-bottom:8px}.v{font-size:25px;font-weight:800;overflow-wrap:anywhere}.positive{color:var(--green)}.negative{color:var(--red)}
+section{margin-top:22px}.chartbox{background:#0e1520;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+canvas{display:block;width:100%;height:320px}.notice{font-size:13px;line-height:1.55;color:var(--muted);background:#111b29;border:1px solid var(--line);padding:13px;border-radius:12px;margin-top:10px}
+.status{font-size:13px;margin:8px 0;color:var(--muted);min-height:20px}.status.ok{color:var(--green)}.status.warn{color:var(--gold)}
+.level{display:flex;justify-content:space-between;gap:8px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}.level:last-child{border:0}
+.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:11px 7px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-weight:600}
+.two{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(260px,.7fr);gap:14px}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+@media(max-width:650px){header{padding:14px 12px}h1{font-size:19px}.pill{font-size:11px;padding:9px}.two{grid-template-columns:1fr}.grid{gap:9px}.card{padding:14px}.v{font-size:23px}canvas{height:290px}}
+</style>
+</head>
+<body>
+<header><div><h1>BTC Grid Control</h1><div class="sub">BTC-USDT Perpetual · LONG · DEMO</div></div><span class="pill">DEMO · БЕЗ ОРДЕРОВ</span></header>
+<main>
+<div class="pricebox">
+ <div class="small muted">BingX Perpetual BTC-USDT · публичные рыночные данные</div>
+ <div id="feedStatus" class="status">Подключение к BingX…</div>
+ <div id="pv" class="price">$ —</div>
+ <div class="row"><div class="fieldwrap"><label for="manualPrice">Ручной ввод цены (резервный режим)</label><input id="manualPrice" type="number" inputmode="decimal" placeholder="Например, 95000"></div><button id="applyPrice">Ввести вручную</button></div>
+ <div id="stamp" class="small muted" style="margin-top:8px">Цена не задана</div>
+</div>
+<div class="grid">
+ <div class="card"><div class="k">Баланс DEMO</div><div class="v" id="balance">$200.00</div></div>
+ <div class="card"><div class="k">Нереализованный PnL</div><div class="v" id="unrealized">$0.00</div></div>
+ <div class="card"><div class="k">Реализованный PnL</div><div class="v" id="realized">$0.00</div></div>
+ <div class="card"><div class="k">Открытые позиции</div><div class="v" id="count">0</div></div>
+</div>
+<div class="two">
+ <section>
+  <div class="toolbar"><h2>График цены и уровни</h2><select id="interval" style="width:auto"><option value="1m">1 мин</option><option value="5m">5 мин</option><option value="15m">15 мин</option><option value="1h">1 час</option><option value="4h">4 часа</option><option value="1d">1 день</option></select></div>
+  <div id="chartStatus" class="status">Ожидание данных графика…</div>
+  <div class="chartbox"><canvas id="chart" width="1000" height="500"></canvas></div>
+  <div class="notice">График — свечи BingX Perpetual. Котировки загружаются из публичного API без ключа. Если браузер или сеть блокирует запрос, статус покажет причину; можно временно вводить цену вручную.</div>
+ </section>
+ <section><h2>Сетка входов</h2><div class="card" id="levels">Сначала задай контрольную цену.</div></section>
+</div>
+<section><h2>Управление DEMO</h2><div class="card"><div class="row"><button id="start">Задать контрольную цену и запустить</button><button class="secondary" id="pause" disabled>Пауза</button><button class="danger" id="reset">Сброс DEMO</button></div>
+<div class="notice">Первый вход −1,5% от контрольной цены; каждый следующий −1,5% от предыдущего. Номинал каждой позиции $100, индивидуальный TP +1,5%. Закрытие позиции не сбрасывает сетку. Плечо 20× — справочно. Комиссии, funding и ликвидация не моделируются. Это симуляция, не торговый бот.</div></div></section>
+<section><h2>Открытые позиции</h2><div class="card tablewrap"><table><thead><tr><th>#</th><th>Вход</th><th>TP</th><th>BTC</th><th>PnL</th></tr></thead><tbody id="positions"></tbody></table></div></section>
+<section><h2>История DEMO</h2><div class="card tablewrap"><table><thead><tr><th>Время</th><th>Событие</th><th>Цена</th><th>PnL</th></tr></thead><tbody id="history"></tbody></table></div></section>
+<section><h2>Параметры стратегии</h2><div class="grid">
+ <div class="card"><div class="k">Направление</div><div class="v">LONG</div></div><div class="card"><div class="k">Номинал позиции</div><div class="v">$100</div></div>
+ <div class="card"><div class="k">Шаг сетки</div><div class="v">−1,5%</div></div><div class="card"><div class="k">Take Profit</div><div class="v">+1,5%</div></div>
+</div><div class="notice">Данные DEMO сохраняются только в браузере этого устройства. Страница должна оставаться открытой для непрерывной симуляции. Реальные ордера не отправляются.</div></section>
+</main>
+<script>
+'use strict';
+const KEY='btc-grid-demo-v2',STEP=.015,TP=.015,NOTIONAL=100;
+const fresh=()=>({running:false,control:null,price:null,balance:200,realized:0,next:0,positions:[],history:[],priceTrail:[]});
+let state;try{state=JSON.parse(localStorage.getItem(KEY))||fresh()}catch(_){state=fresh()}
+const $=id=>document.getElementById(id),money=n=>(n<0?'−':'')+'$'+Math.abs(n).toFixed(2),num=n=>Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(_){}}
+function gridPrice(i){return state.control*Math.pow(1-STEP,i+1)}
+function addLog(event,pnl=0,p=state.price){state.history.unshift({time:new Date().toLocaleString('ru-RU'),event,price:p,pnl});state.history=state.history.slice(0,100)}
+function setPrice(value,source='manual'){
+ const p=Number(value);if(!Number.isFinite(p)||p<=0){if(source==='manual')alert('Введи корректную цену BTC');return}
+ state.price=p;state.priceTrail.push({time:Date.now(),price:p});state.priceTrail=state.priceTrail.slice(-180);
+ if(state.running){
+  while(state.next<1000 && p<=gridPrice(state.next)){
+   const entry=gridPrice(state.next),id=state.next+1;
+   state.positions.push({id,entry,tp:entry*(1+TP),qty:NOTIONAL/entry});
+   addLog('Вход LONG #'+id,0,entry);state.next++;
+  }
+  const remaining=[];
+  for(const pos of state.positions){
+   if(p>=pos.tp){const pnl=(pos.tp-pos.entry)*pos.qty;state.balance+=pnl;state.realized+=pnl;addLog('TP закрытие #'+pos.id,pnl,pos.tp)}
+   else remaining.push(pos);
+  }
+  state.positions=remaining;
+ }
+ persist();render();
+}
+function render(){
+ $('pv').textContent=state.price?'$'+num(state.price):'$ —';
+ $('stamp').textContent=state.price?'Последняя цена: '+new Date().toLocaleTimeString('ru-RU'):'Цена не задана';
+ const unreal=state.positions.reduce((sum,pos)=>sum+(state.price-pos.entry)*pos.qty,0);
+ $('balance').textContent=money(state.balance);$('unrealized').textContent=money(unreal);$('unrealized').className='v '+(unreal>=0?'positive':'negative');
+ $('realized').textContent=money(state.realized);$('count').textContent=state.positions.length;
+ $('start').disabled=state.running;$('pause').disabled=!state.running;
+ $('start').textContent=state.control?'Возобновить DEMO':'Задать контрольную цену и запустить';
+ $('levels').innerHTML=state.control?Array.from({length:10},(_,i)=>{const n=state.next+i;return `<div class="level"><span>Вход #${n+1}</span><b>${num(gridPrice(n))} USDT</b></div>`}).join(''):'Сначала задай контрольную цену.';
+ $('positions').innerHTML=state.positions.length?state.positions.map(p=>`<tr><td>${p.id}</td><td>${num(p.entry)}</td><td>${num(p.tp)}</td><td>${p.qty.toFixed(6)}</td><td>${money((state.price-p.entry)*p.qty)}</td></tr>`).join(''):'<tr><td colspan="5" class="muted">Нет открытых позиций</td></tr>';
+ $('history').innerHTML=state.history.length?state.history.map(h=>`<tr><td>${h.time}</td><td>${h.event}</td><td>${num(h.price)}</td><td>${money(h.pnl)}</td></tr>`).join(''):'<tr><td colspan="4" class="muted">История пуста</td></tr>';
+ drawChart();
+}
+let candles=[];
+function drawChart(){
+ const c=$('chart'),ctx=c.getContext('2d'),w=c.width,h=c.height;ctx.clearRect(0,0,w,h);ctx.fillStyle='#0e1520';ctx.fillRect(0,0,w,h);
+ ctx.font='14px sans-serif';ctx.fillStyle='#91a0b4';ctx.strokeStyle='#263548';
+ if(!candles.length){ctx.fillText('Ожидание свечей BingX…',24,40);return}
+ const lo0=Math.min(...candles.map(k=>k.low)),hi0=Math.max(...candles.map(k=>k.high));
+ const extra=(hi0-lo0)*.08||1,lo=lo0-extra,hi=hi0+extra,left=18,right=95,top=20,bottom=35,cw=w-left-right,ch=h-top-bottom;
+ const Y=v=>top+(hi-v)/(hi-lo)*ch,slot=cw/candles.length,bw=Math.max(2,slot*.62);
+ for(let i=0;i<=4;i++){const y=top+i*ch/4;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke();ctx.fillText(num(hi-i*(hi-lo)/4),w-right+5,y+4)}
+ candles.forEach((k,i)=>{const x=left+i*slot+slot/2,up=k.close>=k.open,color=up?'#36c98b':'#ff6b75';ctx.strokeStyle=color;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x,Y(k.high));ctx.lineTo(x,Y(k.low));ctx.stroke();const y=Y(Math.max(k.open,k.close)),height=Math.max(2,Y(Math.min(k.open,k.close))-y);ctx.fillRect(x-bw/2,y,bw,height)});
+ if(state.control){ctx.setLineDash([7,6]);ctx.strokeStyle='#f2c66d';for(let i=0;i<Math.min(10,state.next+3);i++){const y=Y(gridPrice(i));if(y>top&&y<top+ch){ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(w-right,y);ctx.stroke()}}ctx.setLineDash([])}
+ const last=candles[candles.length-1];ctx.fillStyle='#91a0b4';ctx.fillText(new Date(candles[0].time).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),left,h-10);ctx.fillText(new Date(last.time).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),w-right-70,h-10);
+}
+async function getJson(url){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+ try{const response=await fetch(url,{method:'GET',cache:'no-store',mode:'cors',signal:controller.signal});if(!response.ok)throw new Error('HTTP '+response.status);return await response.json()}
+ finally{clearTimeout(timer)}
+}
+let priceBusy=false,candleBusy=false;
+async function updatePrice(){
+ if(priceBusy)return;priceBusy=true;
+ try{
+  const j=await getJson('https://open-api.bingx.com/openApi/swap/v2/quote/price?symbol=BTC-USDT');
+  if(j.code!==0)throw new Error(j.msg||'API code '+j.code);
+  const p=Number(j.data?.price);if(!Number.isFinite(p)||p<=0)throw new Error('В ответе нет цены');
+  $('feedStatus').textContent='● BingX подключён · обновление каждые 5 секунд';$('feedStatus').className='status ok';setPrice(p,'api');
+ }catch(e){$('feedStatus').textContent='Нет связи с BingX: '+(e.name==='AbortError'?'тайм-аут':e.message);$('feedStatus').className='status warn'}
+ finally{priceBusy=false}
+}
+function parseCandle(k){
+ // BingX v3 may return positional arrays; tolerate object-shaped responses too.
+ if(Array.isArray(k))return {time:Number(k[0]),open:Number(k[1]),high:Number(k[2]),low:Number(k[3]),close:Number(k[4]),volume:Number(k[5])};
+ return {time:Number(k.time??k.openTime),open:Number(k.open),high:Number(k.high),low:Number(k.low),close:Number(k.close),volume:Number(k.volume)};
+}
+async function updateCandles(){
+ if(candleBusy)return;candleBusy=true;$('chartStatus').textContent='Запрашиваем свечи BingX…';$('chartStatus').className='status';
+ try{
+  const interval=$('interval').value,url='https://open-api.bingx.com/openApi/swap/v3/quote/klines?symbol=BTC-USDT&interval='+encodeURIComponent(interval)+'&limit=100';
+  const j=await getJson(url);if(j.code!==0||!Array.isArray(j.data))throw new Error(j.msg||'Неверный формат ответа');
+  candles=j.data.map(parseCandle).filter(k=>[k.time,k.open,k.high,k.low,k.close].every(Number.isFinite)).sort((a,b)=>a.time-b.time);
+  if(!candles.length)throw new Error('Свечи не получены');
+  drawChart();$('chartStatus').textContent='● BingX · '+candles.length+' свечей · таймфрейм '+interval+' · обновлено '+new Date().toLocaleTimeString('ru-RU');$('chartStatus').className='status ok';
+ }catch(e){$('chartStatus').textContent='График не загрузился: '+(e.name==='AbortError'?'тайм-аут':e.message);$('chartStatus').className='status warn'}
+ finally{candleBusy=false}
+}
+$('applyPrice').onclick=()=>setPrice($('manualPrice').value,'manual');
+$('manualPrice').onkeydown=e=>{if(e.key==='Enter')$('applyPrice').click()};
+$('interval').onchange=updateCandles;
+$('start').onclick=()=>{if(!state.control){if(!state.price)return alert('Сначала дождись цены BingX или введи её вручную');state.control=state.price;state.next=0;addLog('Установлена контрольная цена',0,state.control)}state.running=true;persist();render()};
+$('pause').onclick=()=>{state.running=false;persist();render()};
+$('reset').onclick=()=>{if(confirm('Полностью сбросить DEMO и историю?')){state=fresh();persist();render()}};
+render();updatePrice();updateCandles();setInterval(updatePrice,5000);setInterval(updateCandles,60000);
+</script>
+</body>
+</html>
